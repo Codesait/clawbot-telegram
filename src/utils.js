@@ -18,11 +18,12 @@ export function isValidUrl(string) {
  * @param {string} text 
  * @returns {{command: string|null, args: string[]}}
  */
+
 export function parseCommand(text) {
-    if (!text.startsWith('/')) {
+    if (!text || !text.startsWith('/')) {
         return { command: null, args: [] };
     }
-    const parts = text.split(/\s+/);
+    const parts = text.trim().split(/\s+/).filter(Boolean);
     const command = parts[0].slice(1); // remove /
     const args = parts.slice(1);
     return { command, args };

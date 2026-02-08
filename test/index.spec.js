@@ -1,20 +1,47 @@
+
 import { env, createExecutionContext, waitOnExecutionContext, SELF } from 'cloudflare:test';
 import { describe, it, expect } from 'vitest';
 import worker from '../src';
 
-describe('Hello World worker', () => {
-	it('responds with Hello World! (unit style)', async () => {
-		const request = new Request('http://example.com');
-		// Create an empty context to pass to `worker.fetch()`.
+describe('ClawBot worker', () => {
+	it('responds with OK to valid Telegram POST', async () => {
+		const request = new Request('http://example.com', {
+			method: 'POST',
+			body: JSON.stringify({
+				message: {
+					chat: { id: 123 },
+					text: '/start'
+				}
+			})
+		});
 		const ctx = createExecutionContext();
 		const response = await worker.fetch(request, env, ctx);
-		// Wait for all `Promise`s passed to `ctx.waitUntil()` to settle before running test assertions
 		await waitOnExecutionContext(ctx);
-		expect(await response.text()).toMatchInlineSnapshot(`"Hello World!"`);
+		expect(await response.text()).toMatchInlineSnapshot(`"OK"`);
 	});
 
-	it('responds with Hello World! (integration style)', async () => {
-		const response = await SELF.fetch('http://example.com');
-		expect(await response.text()).toMatchInlineSnapshot(`"Hello World!"`);
+
+	it('ignores non-POST requests', async () => {
+		const request = new Request('http://example.com', { method: 'GET' });
+		const ctx = createExecutionContext();
+		const response = await worker.fetch(request, env, ctx);
+		await waitOnExecutionContext(ctx);
+		expect(await response.text()).toMatchInlineSnapshot(`"OK"`);
+	});
+
+	it('responds to /myrepos', async () => {
+		const request = new Request('http://example.com', {
+			method: 'POST',
+			body: JSON.stringify({
+				message: {
+					chat: { id: 123 },
+					text: '/myrepos'
+				}
+			})
+		});
+		const ctx = createExecutionContext();
+		const response = await worker.fetch(request, env, ctx);
+		await waitOnExecutionContext(ctx);
+		expect(await response.text()).toMatchInlineSnapshot(`"OK"`);
 	});
 });

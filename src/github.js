@@ -146,9 +146,45 @@ export async function createComment(owner, repo, issueNumber, body, token) {
             const error = await res.text();
             throw new Error(`Failed to comment: ${error}`);
         }
+
         return true;
     } catch (error) {
         console.error('Error creating comment:', error);
+        throw error;
+    }
+}
+
+/**
+ * Creates a new issue in a repo.
+ * @param {string} owner 
+ * @param {string} repo 
+ * @param {string} title 
+ * @param {string} body 
+ * @param {string} token 
+ * @returns {Promise<object>} Created issue data
+ */
+export async function createIssue(owner, repo, title, body, token) {
+    const headers = {
+        'User-Agent': 'ClawBot-Worker',
+        'Accept': 'application/vnd.github.v3+json',
+        'Authorization': `token ${token}`,
+        'Content-Type': 'application/json'
+    };
+
+    try {
+        const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ title, body })
+        });
+
+        if (!res.ok) {
+            const error = await res.text();
+            throw new Error(`Failed to create issue: ${error}`);
+        }
+        return await res.json();
+    } catch (error) {
+        console.error('Error creating issue:', error);
         throw error;
     }
 }
@@ -318,7 +354,49 @@ export function parseGitHubPRUrl(url) {
             };
         }
         return null;
+
     } catch (e) {
         return null;
+    }
+}
+
+/**
+ * Fetches the full file tree of a repo (recursive).
+ * @param {string} owner 
+ * @param {string} repo 
+ * @param {string} token 
+ * @returns {Promise<string>} Formatted file tree
+ */
+export async function fetchRepoTree(owner, repo, token) {
+    const headers = {
+        'User-Agent': 'ClawBot-Worker',
+        'Authorization': `token ${token}`
+    };
+
+    try {
+        // 1. Get default branch SHA
+        const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers });
+        if (!repoRes.ok) throw new Error(`Could not fetch repo info: ${repoRes.statusText}`);
+        const repoData = await repoRes.json();
+        const defaultBranch = repoData.default_branch;
+
+        // 2. Get Tree (Recursive)
+        const treeRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`, { headers });
+        if (!treeRes.ok) throw new Error(`Could not fetch file tree: ${treeRes.statusText}`);
+        const treeData = await treeRes.json();
+
+        // 3. Format output (limit to top 50-100 files to save context?)
+        // Let's filter for source code mainly, or just list paths.
+        if (treeData.truncated) {
+            return "⚠️ Repo is too large, file list truncated.\n" + treeData.tree.map(f => f.path).slice(0, 200).join('\n');
+        }
+
+        return treeData.tree
+            .filter(f => f.type === 'blob') // only files
+            .map(f => f.path)
+            .join('\n');
+
+    } catch (e) {
+        throw new Error(`Error fetching repo tree: ${e.message}`);
     }
 }

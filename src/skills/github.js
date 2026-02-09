@@ -1,6 +1,5 @@
 
-
-import { fetchUserRepos, fetchIssues, fetchIssue, createComment, updateIssueState, fetchPR, parseGitHubPRUrl, fetchFileContent } from '../github.js';
+import { fetchUserRepos, fetchIssues, fetchIssue, createComment, updateIssueState, fetchPR, parseGitHubPRUrl, fetchFileContent, createIssue, fetchRepoTree } from '../github.js';
 
 export const githubSkill = {
     name: 'github',
@@ -58,6 +57,38 @@ export const githubSkill = {
                     required: ["owner", "repo"]
                 }
             }
+        },
+        {
+            type: "function",
+            function: {
+                name: "create_issue",
+                description: "Create a new issue in a GitHub repository.",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        title: { type: "string", description: "Title of the issue" },
+                        body: { type: "string", description: "Body/Description of the issue" },
+                        owner: { type: "string", description: "Repository owner (optional, uses context default)" },
+                        repo: { type: "string", description: "Repository name (optional, uses context default)" }
+                    },
+                    required: ["title", "body"]
+                }
+            }
+        },
+        {
+            type: "function",
+            function: {
+                name: "list_files",
+                description: "List all files in a repository recursively. Use this to scan the codebase structure before reading specific files.",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        owner: { type: "string", description: "Repository owner" },
+                        repo: { type: "string", description: "Repository name" }
+                    },
+                    required: ["owner", "repo"]
+                }
+            }
         }
     ],
     handlers: {
@@ -80,6 +111,36 @@ export const githubSkill = {
             } catch (e) {
                 // Determine if it was a 404 (maybe main vs master, or lower case)
                 return `⚠️ Could not fetch README: ${e.message}. Is the repo public and does it have a README.md?`;
+            }
+        },
+        'create_issue': async ({ args, env, chatId }) => {
+            let owner = args.owner;
+            let repo = args.repo;
+
+            if (!owner || !repo) {
+                const defaultRepo = await env.CHAT_HISTORY.get(`repo:${chatId}`);
+                if (defaultRepo) {
+                    [owner, repo] = defaultRepo.split('/');
+                }
+            }
+
+            if (!owner || !repo) {
+                return "⚠️ I need a repository to create an issue in. Please specify owner/repo or set a default with /setrepo.";
+            }
+
+            try {
+                const issue = await createIssue(owner, repo, args.title, args.body, env.GITHUB_TOKEN);
+                return `✅ Issue created! #${issue.number}\nLink: ${issue.html_url}`;
+            } catch (e) {
+                return `Error creating issue: ${e.message}`;
+            }
+        },
+        'list_files': async ({ args, env }) => {
+            try {
+                const files = await fetchRepoTree(args.owner, args.repo, env.GITHUB_TOKEN);
+                return `📂 File list for ${args.owner}/${args.repo}:\n\n${files}`;
+            } catch (e) {
+                return `⚠️ Could not list files: ${e.message}`;
             }
         }
     }

@@ -16,9 +16,20 @@
 	"kv_namespaces": [
 		{
 			"binding": "CHAT_HISTORY",
-			"id": "a4a65c52fc224ff18d318ad272bf375f"
+			"id": "a4a65c52fc224ff18d318ad272bf375f",
+			"preview_id": "a4a65c52fc224ff18d318ad272bf375f"
+		},
+		{
+			"binding": "USER_PREFS",
+			"id": "e46dfe4570d34c89b23999381a4fa2cc",
+			"preview_id": "e46dfe4570d34c89b23999381a4fa2cc"
 		}
 	],
+	"triggers": {
+		"crons": [
+			"0 8 * * *"
+		]
+	},
 	"browser": {
 		"binding": "BROWSER"
 	}

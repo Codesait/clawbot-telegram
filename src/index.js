@@ -53,6 +53,15 @@ async function saveChatHistory(chatId, history, env) {
 
 export default {
 	async fetch(request, env) {
+		// 1. SECURITY: Validate Telegram webhook secret
+		if (env.TELEGRAM_SECRET_TOKEN) {
+			const receivedSecret = request.headers.get('X-Telegram-Bot-Api-Secret-Token');
+			if (receivedSecret !== env.TELEGRAM_SECRET_TOKEN) {
+				console.warn('⚠️ [SECURITY] Invalid webhook secret');
+				return new Response('Unauthorized', { status: 403 });
+			}
+		}
+
 		if (request.method !== "POST") {
 			return new Response("OK");
 		}
@@ -70,7 +79,60 @@ export default {
 		}
 
 		const chatId = message.chat.id;
+
+		// 2. SECURITY: Validate chatId
+		if (!chatId || typeof chatId !== 'number') {
+			console.warn('⚠️ [SECURITY] Invalid chatId');
+			return new Response("Invalid request", { status: 400 });
+		}
+
+		// 3. SECURITY: User Authorization (Allowlist)
+		if (env.ALLOWED_CHAT_IDS) {
+			const allowedUsers = env.ALLOWED_CHAT_IDS.split(',').map(id => id.trim());
+			if (!allowedUsers.includes(chatId.toString())) {
+				console.warn(`⚠️ [SECURITY] Unauthorized user: ${chatId}`);
+				await fetch(`https://api.telegram.org/bot${env.TELEGRAM_TOKEN}/sendMessage`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						chat_id: chatId,
+						text: '🚫 Unauthorized. This bot is private.'
+					})
+				});
+				return new Response("OK");
+			}
+		}
+
+		// 4. SECURITY: Rate Limiting (10 requests per minute)
+		const rateLimitKey = `ratelimit:${chatId}`;
+		const requestCount = await env.CHAT_HISTORY.get(rateLimitKey);
+		const RATE_LIMIT = 10;
+
+		if (requestCount && parseInt(requestCount) >= RATE_LIMIT) {
+			console.warn(`⚠️ [SECURITY] Rate limit exceeded for user: ${chatId}`);
+			await fetch(`https://api.telegram.org/bot${env.TELEGRAM_TOKEN}/sendMessage`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					chat_id: chatId,
+					text: '⏱ Rate limit exceeded. Please wait a minute before trying again.'
+				})
+			});
+			return new Response("OK");
+		}
+
+		// Increment rate limit counter
+		const newCount = requestCount ? parseInt(requestCount) + 1 : 1;
+		await env.CHAT_HISTORY.put(rateLimitKey, newCount.toString(), { expirationTtl: 60 });
+
 		let text = message.text || message.caption || "";
+
+		// 5. SECURITY: Input length validation
+		const MAX_INPUT_LENGTH = 4000;
+		if (text.length > MAX_INPUT_LENGTH) {
+			text = text.substring(0, MAX_INPUT_LENGTH) + '... (truncated)';
+		}
+
 		const fileId = message.voice?.file_id || message.audio?.file_id || message.document?.file_id || message.photo?.[message.photo.length - 1]?.file_id;
 		const mimeType = message.voice ? 'audio/ogg' : message.audio ? 'audio/mpeg' : message.document ? message.document.mime_type : 'image/jpeg';
 

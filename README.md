@@ -63,16 +63,53 @@ npx wrangler secret put TELEGRAM_TOKEN
 npx wrangler secret put GITHUB_TOKEN
 ```
 
-### 3. Deploy
+### 3. Configure Security (IMPORTANT!)
+
+#### a) Set Webhook Secret
+Generate a random secret token:
+```bash
+openssl rand -hex 32
+```
+
+Store it as a Wrangler secret:
+```bash
+npx wrangler secret put TELEGRAM_SECRET_TOKEN
+# Paste the generated token
+```
+
+#### b) Set User Allowlist (Optional but Recommended)
+Get your Telegram Chat ID by sending `/start` to your bot and checking the logs with `npx wrangler tail`.
+
+Then set the allowlist:
+```bash
+npx wrangler secret put ALLOWED_CHAT_IDS
+# Enter your chat ID, e.g: 1537482744
+# For multiple users: 1537482744,987654321,111222333
+```
+
+**⚠️ If you skip this step, anyone can use your bot and consume your OpenAI credits!**
+
+### 4. Deploy
 ```bash
 npm run deploy
 ```
 
-### 4. Set Telegram Webhook
+### 5. Set Telegram Webhook with Secret
 ```bash
-curl -F "url=https://clawbot-telegram.chiemela-dev.workers.dev" \
-     https://api.telegram.org/bot<YOUR_TOKEN>/setWebhook
+# Replace WORKER_URL, BOT_TOKEN, and SECRET_TOKEN with your values
+curl -F "url=https://your-worker.workers.dev" \
+     -F "secret_token=YOUR_SECRET_TOKEN_FROM_STEP_3" \
+     https://api.telegram.org/botYOUR_BOT_TOKEN/setWebhook
 ```
+
+## Security Features
+
+- ✅ **Webhook Secret Validation** - Prevents fake messages from unauthorized sources
+- ✅ **User Allowlist** - Restricts bot access to specific Telegram users
+- ✅ **Rate Limiting** - 10 requests per minute per user
+- ✅ **Input Validation** - Sanitizes and validates all inputs
+- ✅ **Secrets Management** - All API keys stored as Cloudflare secrets
+- ✅ **Data Expiration** - Chat history auto-expires after 7 days
 
 ## Development
 
@@ -119,4 +156,21 @@ The bot has a unique persona:
 
 ## License
 
-Private - All rights reserved.
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## Author
+
+**Wisdom Uzoma (Melasin)**
+- GitHub: [@Codesait](https://github.com/Codesait)
+- Instagram: [@melasin.dev](https://instagram.com/melasin.dev)
+

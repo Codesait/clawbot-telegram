@@ -78,6 +78,22 @@ export const githubSkill = {
         {
             type: "function",
             function: {
+                name: "close_issue",
+                description: "Close a GitHub issue. Use this when the user asks to close/resolve an issue.",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        issue_number: { type: "number", description: "Issue number to close (e.g. 42)" },
+                        owner: { type: "string", description: "Repository owner (optional, uses context default)" },
+                        repo: { type: "string", description: "Repository name (optional, uses context default)" }
+                    },
+                    required: ["issue_number"]
+                }
+            }
+        },
+        {
+            type: "function",
+            function: {
                 name: "list_files",
                 description: "List all files in a repository recursively. Use this to scan the codebase structure before reading specific files.",
                 parameters: {
@@ -133,6 +149,28 @@ export const githubSkill = {
                 return `✅ Issue created! #${issue.number}\nLink: ${issue.html_url}`;
             } catch (e) {
                 return `Error creating issue: ${e.message}`;
+            }
+        },
+        'close_issue': async ({ args, env, chatId }) => {
+            let owner = args.owner;
+            let repo = args.repo;
+
+            if (!owner || !repo) {
+                const defaultRepo = await env.CHAT_HISTORY.get(`repo:${chatId}`);
+                if (defaultRepo) {
+                    [owner, repo] = defaultRepo.split('/');
+                }
+            }
+
+            if (!owner || !repo) {
+                return "⚠️ I need a repository to close an issue in. Please specify owner/repo or set a default with set_repo.";
+            }
+
+            try {
+                await updateIssueState(owner, repo, args.issue_number.toString(), 'closed', env.GITHUB_TOKEN);
+                return `✅ Issue #${args.issue_number} has been closed in ${owner}/${repo}`;
+            } catch (e) {
+                return `Error closing issue: ${e.message}`;
             }
         },
         'list_files': async ({ args, env }) => {
